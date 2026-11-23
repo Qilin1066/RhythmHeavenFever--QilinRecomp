@@ -45,6 +45,15 @@ $Repo = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $Work = Join-Path $Repo 'build-install'
 $Log = Join-Path $Work 'install.log'
 
+# SHA-256 of a file, upper-case hex. Not Get-FileHash: that cmdlet is missing
+# when Windows PowerShell inherits a PowerShell 7 module path, as it does
+# when started from pwsh (or from CI's shell).
+function Get-Sha256([string]$path) {
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    $stream = [System.IO.File]::OpenRead($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($path))  # .NET resolves against the process folder, not PowerShell location
+    try { return ([BitConverter]::ToString($sha.ComputeHash($stream))).Replace('-', '') }
+    finally { $stream.Dispose(); $sha.Dispose() }
+}
 function Say([string]$text) { Write-Host $text }
 function Step([string]$text) { Write-Host ''; Write-Host "== $text" -ForegroundColor Cyan }
 function Fail([string]$text) {
@@ -146,7 +155,7 @@ foreach ($candidate in @($Disc, (Split-Path $Disc -Parent), (Join-Path $Disc 'DA
 $Dol = Join-Path $Disc 'sys\main.dol'
 if (-not (Test-Path $Dol)) { Fail "$Disc has no sys\main.dol: it isn't an extracted Wii disc (it should hold ""sys"" and ""files"")." }
 if (-not (Test-Path (Join-Path $Disc 'files'))) { Fail "$Disc has no ""files"" folder: the whole disc must be extracted, not only its system files." }
-$hash = (Get-FileHash $Dol -Algorithm SHA256).Hash.ToLower()
+$hash = (Get-Sha256 $Dol).ToLower()
 if ($hash -ne $DolSha256) {
     Fail "this isn't the supported disc. It must be the European (PAL) Beat the Beat: Rhythm Paradise, SOMP01 revision 0; other regions and revisions aren't supported yet. (main.dol's SHA-256 is $hash.)"
 }

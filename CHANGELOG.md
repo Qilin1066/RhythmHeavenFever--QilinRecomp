@@ -16,6 +16,7 @@ Each release is a git tag (`vX.Y.Z`) with a matching GitHub release. The version
 - **Licence: GPL-3.0** (`LICENSE`), as in all the QilinRecomp projects, in place of MIT: anyone may use, share, change and sell it, but whatever they distribute that is built from it must come with its full source under the same licence. Earlier versions stay under MIT.
 
 ### Fixed
+- The installer checks `main.dol` with .NET's SHA-256 rather than `Get-FileHash`, which is missing when Windows PowerShell inherits a PowerShell 7 module path (started from pwsh, for example).
 - **Every controller works the F1 menu**, not only the first one SDL lists (which can be a virtual pad or a wheel's base): Dear ImGui's SDL3 backend is set to read them all, as APB's menu now does.
 
 ## [0.17.0] - 2026-11-21
