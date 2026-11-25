@@ -6,6 +6,7 @@
 // bring-up reaches them, each checked against how its callers use the
 // result. Runtime code: no std::format.
 #include "nand.hpp"
+#include "nand_io.hpp"
 
 #include <cstdio>
 #include <cstdlib>
@@ -163,12 +164,11 @@ QILIN_NATIVE(NANDRead) {
         return;
     }
     require_guest_range(c.r[4], c.r[5], c.lr - 4, "NANDRead's buffer");
-    f->stream.clear();
-    f->stream.read(reinterpret_cast<char*>(g_mem + c.r[4]), c.r[5]);
-    note_guest_write(c.r[4], c.r[5]);  // DMA (IOS writes memory directly)
-    const auto n = static_cast<uint32_t>(f->stream.gcount());
-    f->stream.clear();
-    c.r[3] = n;
+    const int32_t result = nand_read(f->stream, reinterpret_cast<char*>(g_mem + c.r[4]), c.r[5]);
+    // A hard failure may have changed part of the buffer without reporting
+    // its size. Invalidate conservatively then; EOF reports an exact count.
+    note_guest_write(c.r[4], result < 0 ? c.r[5] : static_cast<uint32_t>(result));
+    c.r[3] = static_cast<uint32_t>(result);
 }
 QILIN_NATIVE(NANDWrite) {
     OpenFile* f = open_file(c);
@@ -357,3 +357,4 @@ void init_nand(std::string_view disc_id) {
 }
 
 }  // namespace qilin::rt
+

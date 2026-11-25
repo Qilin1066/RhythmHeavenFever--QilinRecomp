@@ -20,6 +20,14 @@ Each release is a git tag (`vX.Y.Z`) with a matching GitHub release. The version
 - The installer checks `main.dol` with .NET's SHA-256 rather than `Get-FileHash`, which is missing when Windows PowerShell inherits a PowerShell 7 module path (started from pwsh, for example).
 - **Every controller works the F1 menu**, not only the first one SDL lists (which can be a virtual pad or a wheel's base): Dear ImGui's SDL3 backend is set to read them all, as APB's menu now does.
 
+## [0.17.1] - 2026-11-25
+
+### Fixed
+- NANDRead returns NAND_RESULT_UNKNOWN for a host I/O failure rather than clearing the error and reporting a successful short read. Ordinary EOF still returns the bytes read. Successful short reads mark only returned bytes as changed; hard failures conservatively invalidate the requested buffer.
+
+### Tests
+- Added game-free NAND stream tests for full reads, short reads at EOF, zero-length reads and injected host read errors.
+
 ## [0.17.0] - 2026-11-21
 
 Played by the owner through the first four rhythm games into the first remix. Less lag and stutter, the settings menu as the other Qilin recomps', and the first remix's black screen fixed.
@@ -349,3 +357,4 @@ These were the 0.1 phase's "Unreleased" entries, kept as written.
 - Required Vulkan 1.3 in the renderer and added device enumeration and extension handling for MoltenVK. Added a macOS build option for a supplied MoltenVK dynamic library.
 - Verified Windows Vulkan startup, native dispatch, and the A+B transition from the title screen to save-slot selection.
 - Recorded the exact source revisions, local build procedure, and the Windows gameplay validation milestone.
+

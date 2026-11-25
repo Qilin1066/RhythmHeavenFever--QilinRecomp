@@ -7,7 +7,7 @@ if(APPLE AND NOT CMAKE_OSX_DEPLOYMENT_TARGET)
     set(CMAKE_OSX_DEPLOYMENT_TARGET 10.15 CACHE STRING "oldest macOS the runtime runs on")
 endif()
 # The single source of the version number (see CHANGELOG.md for the scheme).
-project(BeatTheBeatQilinRecomp VERSION 0.17.0 LANGUAGES C CXX)
+project(BeatTheBeatQilinRecomp VERSION 0.17.1 LANGUAGES C CXX)
 
 # ---- Language: C++23 everywhere (recompiler, runtime, generated code) ----
 set(CMAKE_CXX_STANDARD 23)
@@ -324,6 +324,10 @@ endif()
 
 # ---- Tests (no game files needed) ----
 enable_testing()
+add_executable(qilin_nand_io_test recomp/tests/nand_io_test.cpp)
+target_include_directories(qilin_nand_io_test PRIVATE recomp/runtime)
+target_link_libraries(qilin_nand_io_test PRIVATE qilin_warnings)
+add_test(NAME qilin_nand_io_test COMMAND qilin_nand_io_test)
 add_executable(qilin_tests recomp/tests/tests.cpp recomp/runtime/native.cpp recomp/runtime/interrupts.cpp recomp/runtime/timebase.cpp
     recomp/runtime/gx_texture.cpp recomp/runtime/input.cpp recomp/runtime/profile.cpp recomp/runtime/settings.cpp recomp/runtime/bot.cpp)
 target_link_libraries(qilin_tests PRIVATE qilin_core qilin_runtime qilin_warnings)
@@ -333,3 +337,4 @@ if(WIN32)
 endif()
 qilin_tool(qilin_tests)
 add_test(NAME qilin_tests COMMAND qilin_tests)
+
