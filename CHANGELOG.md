@@ -14,6 +14,7 @@ Each release is a git tag (`vX.Y.Z`) with a matching GitHub release. The version
 ### Changed
 - **The repository is now Qilin1066/RhythmHeavenFever--QilinRecomp** (renamed by the owner after the game's North American title, as the sister projects were to GBTGhoulies--QilinRecomp, ApbArcade--QilinRecomp and PunchOutWii--QilinRecomp; GitHub redirects the old names). Links and docs follow. What players see keeps the PAL game's name, and the data folder, the settings file and the installer's entry in Windows are unchanged.
 - **Licence: GPL-3.0** (`LICENSE`), as in all the QilinRecomp projects, in place of MIT: anyone may use, share, change and sell it, but whatever they distribute that is built from it must come with its full source under the same licence. Earlier versions stay under MIT.
+- README rewritten to the layout shared by the QilinRecomp projects: what works and how to build and play it, without the development history.
 
 ### Fixed
 - The installer checks `main.dol` with .NET's SHA-256 rather than `Get-FileHash`, which is missing when Windows PowerShell inherits a PowerShell 7 module path (started from pwsh, for example).
