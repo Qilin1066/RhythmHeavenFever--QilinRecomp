@@ -2,7 +2,7 @@
 
 A static recompilation of **Beat the Beat: Rhythm Paradise** (Nintendo, Wii, 2012; *Rhythm Heaven Fever* in North America) into portable C++23 with a Vulkan 1.3 renderer, for 64-bit Windows, Linux and macOS on x86-64 or ARM64. Any GPU with a Vulkan 1.3 driver is in scope, down to the Raspberry Pi 4 (Mesa 24.3+). Macs run it through MoltenVK (macOS 10.15 or later).
 
-> **No game data is included, and none ever will be.** You need your own copy of the game: the Europe/Australia release, disc `SOMP01`, revision 0. The tools read `main.dol` and the disc files from a path you give them. `.gitignore` keeps game files, and anything generated from them, out of the repository.
+> **No game data is included, and none ever will be.** You need your own copy of the game: the Europe/Australia release, disc `SOMP01`, revision 0. The tools read `main.dol` and the disc files from a path you give them.
 >
 > This is an independent project, not affiliated with or endorsed by Nintendo. *Rhythm Paradise*, *Rhythm Heaven* and Wii are Nintendo's trademarks.
 
