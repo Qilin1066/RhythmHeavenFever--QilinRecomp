@@ -20,7 +20,9 @@ int main() {
     std::istringstream file("save");
     check(qilin::rt::nand_read(file, bytes, 2) == 2 && std::string(bytes, 2) == "sa", "full read");
     check(qilin::rt::nand_read(file, bytes, 8) == 2 && std::string(bytes, 2) == "ve", "EOF is a successful short read");
+    check(file.good(), "successful short read leaves the stream ready to close");
     check(qilin::rt::nand_read(file, bytes, 8) == 0, "EOF returns zero");
+    check(file.good(), "zero-byte EOF leaves the stream ready to close");
     file.clear(); file.seekg(0);
     check(qilin::rt::nand_read(file, bytes, 0) == 0, "zero length read");
     ReadFailure buffer;
