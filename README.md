@@ -25,14 +25,33 @@ Plays from boot through the title, save creation, the opening scene, the HOME me
 | Input | ✅ keyboard and any SDL gamepad; gamepads not yet confirmed on real hardware |
 | Settings menu | ✅ |
 | Windows installer | ✅ |
+| Downloads (Windows, Linux x86-64 and ARM64, macOS) | 🔨 built and checked by CI; a player's first build not yet seen on Linux or macOS |
 | Lockstep test bot | ✅ plays through the first rhythm tests |
 | Rhythm timing, Linux and macOS runs, the rest of the game | ⏳ |
 
 ## Playing
 
-There is no download: a built game is compiled from the game's own code, so it can't be shared. You build it from your own disc.
+A built game can't be shared: it is compiled from the game's own code. So the downloads carry everything else, and the first start builds the game on your computer from your own disc.
 
-### Windows (installer)
+1. Extract your disc to a folder with Dolphin: right-click the game, Properties, Filesystem, right-click the disc, Extract Entire Disc. It must be the Europe/Australia release, disc `SOMP01`, revision 0. A `.wbfs`, `.iso` or `.rvz` isn't read as it is.
+2. From the [Releases page](https://github.com/Qilin1066/RhythmHeavenFever--QilinRecomp/releases), download the file for your computer:
+
+   | Computer | Download |
+   |---|---|
+   | Windows 10 or 11, 64-bit | `RhythmHeavenFever--QilinRecomp-X.Y.Z-windows-x64.zip` |
+   | Linux on x86-64 | `RhythmHeavenFever--QilinRecomp-X.Y.Z-linux-x86_64.tar.gz` |
+   | Linux on ARM64 (Raspberry Pi 4 or 5 with the 64-bit Raspberry Pi OS) | `RhythmHeavenFever--QilinRecomp-X.Y.Z-linux-arm64.tar.gz` |
+   | macOS 14.5 or newer, Apple silicon or Intel | `RhythmHeavenFever--QilinRecomp-X.Y.Z-macos.dmg` |
+
+3. Unpack it and double-click **Play Beat the Beat** (on a Mac, drag **Beat the Beat.app** to Applications and open it; the first time, allow it in System Settings, Privacy & Security, Open Anyway).
+4. Choose the folder holding `sys` and `files` (or drag it onto the window). It says at once if it is another game, region or revision, a disc image, or an incomplete extraction.
+5. The first start builds the game: a few minutes on a desktop PC, much longer on a Raspberry Pi. Then Play.
+
+The download holds the recompiler (`qilin`), the prebuilt runtime, a C++ compiler (LLVM-MinGW on Windows, zig on Linux; a Mac uses Apple's command line tools, which the app offers to install) and the Rhythm Heaven Fever decompilation's function names. Building runs `qilin symbols` (the names matched to your `main.dol`) and `qilin lift`, then compiles and links the result; nothing made from the game leaves your computer. Saves and settings are in the data folder below, shared with any earlier build. Each download's `README.txt` has the details, and "Check for updates" fetches new releases. Graphics need a Vulkan 1.3 driver.
+
+**If you used the installer before:** `install.cmd` (below) installed the game into `%LOCALAPPDATA%\Programs\Beat the Beat - Rhythm Paradise`, which the download leaves alone. To remove it, use Settings, Apps, Installed apps, "Beat the Beat: Rhythm Paradise (Qilin recompilation)", Uninstall (or `Uninstall.cmd` in that folder); saves and settings stay.
+
+### Windows (installer, from the source)
 
 1. Extract your disc to a folder (Dolphin: right-click the game, Properties, Filesystem, right-click "Disc", Extract Entire Disc). It must be the PAL release, `SOMP01`.
 2. Double-click **`install.cmd`** and choose that folder.
@@ -54,7 +73,7 @@ It checks for CMake 3.25, Visual Studio 2022 17.10's C++ tools and Python 3.9 (n
 Build the tools ([Building](#building)), then lift the game with the runtime and build `qilin_run`:
 
 ```sh
-python3 tools/analysis/port_symbols.py --qilin build/qilin --dol path/to/main.dol --symbols-out pal_symbols.txt
+build/qilin symbols path/to/main.dol --decomp third_party/rhf/SOME01 -o pal_symbols.txt
 build/qilin lift path/to/main.dol --out gen-rt --runtime --symbols pal_symbols.txt
 cmake -S . -B build-rt -DQILIN_RUNTIME_GEN_DIR=$PWD/gen-rt -DQILIN_RUNTIME_CHECKED=OFF && cmake --build build-rt --target qilin_run
 build-rt/qilin_run path/to/extracted-disc
@@ -133,6 +152,7 @@ build/qilin cfg      path/to/main.dol [--json cfg.json]    # function discovery 
 build/qilin coverage path/to/main.dol [--list]             # every word: code, padding, dead or unknown (exit 3 if any unknown)
 build/qilin suspects path/to/main.dol                      # functions with problems, for review
 build/qilin hwaccess path/to/main.dol [--json out.json]    # direct hardware accesses in lifted code
+build/qilin identify path/to/extracted-disc --json         # what the folder is (the launcher's check): exit 0, 3 or 2
 build/qilin lift     path/to/main.dol --out gen            # lift to C++ (gen/ is gitignored: never commit it)
 ```
 
@@ -158,10 +178,11 @@ Proves the decoder against GNU objdump (`-M broadway,raw`): mnemonic and operand
 ### Names and libraries
 
 ```sh
-python3 tools/analysis/port_symbols.py --qilin build/qilin --dol path/to/main.dol [--symbols-out pal_symbols.txt]
+build/qilin symbols path/to/main.dol --decomp third_party/rhf/SOME01 -o pal_symbols.txt
+python3 tools/analysis/port_symbols.py --qilin build/qilin --dol path/to/main.dol [--symbols-out pal_symbols.txt] [--list KIND]
 ```
 
-Ports the decomp's US function names to PAL addresses and prints each library's range (`docs/code-analysis.md`). The output is derived from the game: don't commit it.
+Port the decomp's US function names to PAL addresses. `qilin symbols` is the C++ form the downloads run (no Python on a player's computer); `port_symbols.py` writes the same list and also prints each library's range and the pairs of one kind (`docs/code-analysis.md`). The output is derived from the game: don't commit it.
 
 ### Scripted runs and the test bot
 
@@ -190,7 +211,7 @@ Keep `DIR` out of the repository: its pictures come from the game.
 
 | Path | What |
 |---|---|
-| `recomp/src/` | Recompiler: `dol`, `sha256`, `decoder`, `cfg`, `lifter`, `libraries` (lifted, replaced or dropped), `hwaccess`, `main` (the `qilin` CLI) |
+| `recomp/src/` | Recompiler: `dol`, `sha256`, `decoder`, `cfg`, `lifter`, `libraries` (lifted, replaced or dropped), `symbols` (the decomp's names ported), `identify` (the launcher's check), `hwaccess`, `main` (the `qilin` CLI) |
 | `recomp/runtime/` | `guest.hpp` and `dispatch.cpp` for lifted code; the game's runtime: `run.cpp` (`qilin_run`), `machine`, `native`, `os.cpp`, `threads`, `interrupts`, `dvd`, `nand`, `vi.cpp`, `gx*` and `shaders/` (graphics), `audio.cpp` and `wasapi` (sound), `wpad.cpp` and `input`, `host`, `settings`, `menu`, `bot` |
 | `recomp/tests/` | Unit tests on synthetic data, needing no game files |
 | `tools/check/` | The decoder check against GNU objdump |
@@ -198,6 +219,7 @@ Keep `DIR` out of the repository: its pictures come from the game.
 | `tools/analysis/` | `port_symbols.py` and other analysis scripts |
 | `tools/bot/` | The lockstep test bot |
 | `tools/install/` | The Windows installer behind `install.cmd` |
+| `tools/player-kit/` | The downloads: the launcher (`launcher/`, copied unchanged from Toy Commander's), the packaging scripts and their checks |
 | `third_party/rhf/` | The Rhythm Heaven Fever decomp's symbols and splits (CC0) |
 | `docs/` | Roadmap and design targets, prior art, analysis and status notes |
 
@@ -207,7 +229,7 @@ Releases are tagged `vX.Y.Z` on GitHub, and every release is recorded in [`CHANG
 
 ## Licence
 
-This project's own code and documentation are under the [GNU General Public License, version 3](LICENSE) (GPL-3.0): you may use, share, change and sell it, but anything you distribute that is built from it must come with its full source under the same licence. Versions before 2026-11-21 were released under MIT, and those copies stay under MIT. `third_party/rhf/` keeps its CC0 1.0 licence, and the dependencies CMake fetches keep theirs: SDL3 (zlib), Khronos' Vulkan headers (Apache-2.0), Dear ImGui (MIT) and glslang when shaders are rebuilt.
+This project's own code and documentation are under the [GNU General Public License, version 3](LICENSE) (GPL-3.0): you may use, share, change and sell it, but anything you distribute that is built from it must come with its full source under the same licence. Versions before 2026-11-21 were released under MIT, and those copies stay under MIT. `third_party/rhf/` keeps its CC0 1.0 licence, and the dependencies CMake fetches keep theirs: SDL3 (zlib), Khronos' Vulkan headers (Apache-2.0), Dear ImGui (MIT), volk (MIT, the launcher's) and glslang when shaders are rebuilt. The downloads also bundle LLVM-MinGW (Windows), zig (Linux) or MoltenVK (macOS), each with its licences in the download's `LICENSES` folder.
 
 The game itself is Nintendo's and is not covered by anything here: you need your own copy, and nothing built from it may be shared.
 

@@ -267,7 +267,7 @@ bool open_audio(bool retry = false) {
     }
     if (!stream) {
         if (!retry)
-            std::fprintf(stderr, "qilin_run: no audio output (%s): Windows or the driver can't open the default device; "
+            std::fprintf(stderr, "qilin_run: no audio output (%s): the system or the driver can't open the default device; "
                                  "trying again every 2 s\n", SDL_GetError());
         return false;
     }

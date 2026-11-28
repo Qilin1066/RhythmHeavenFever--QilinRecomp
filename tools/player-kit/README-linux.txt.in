@@ -1,0 +1,151 @@
+@TITLE@ QilinRecomp for Linux (64-bit)
+=============================================
+
+Raspberry Pi: this needs the 64-bit Raspberry Pi OS. On the 32-bit one,
+"Play @TITLE@" can't start (the system says it can't execute it, or that
+the file isn't found). In a terminal, "getconf LONG_BIT" says 64 on a
+64-bit system.
+
+@FULL_TITLE@ (@STUDIO@; Rhythm Heaven Fever in North America),
+recompiled to run natively: the game's own program translated into C++ and
+compiled for your computer, drawn with Vulkan.
+
+No game data is included. You need your own copy of the game: @RELEASE@,
+extracted into a folder with Dolphin. Other regions and revisions (Rhythm
+Heaven Fever, Minna no Rhythm Tengoku) are other programs and aren't
+supported.
+
+
+Your game folder
+----------------
+In Dolphin, right-click the game in the list, choose Properties, open the
+Filesystem tab, right-click the disc at the top and choose Extract Entire
+Disc, and pick an empty folder. The folder you need is the one holding
+"sys" and "files": if Dolphin made a DATA folder inside the one you picked,
+it is that DATA folder. (Wiimms ISO Tools' "wit extract" makes the same
+folder.) A .wbfs, .iso or .rvz file can't be read as it is: extract it
+first.
+
+
+Playing
+-------
+1. Unpack the download anywhere you can write to (your home folder is
+   fine): double-click it in your file manager, or in a terminal
+   "tar xzf @PACKAGE@-*.tar.gz". Building the game needs about 2 GB free.
+2. Open the @PACKAGE@ folder and double-click "Play @TITLE@" (if your file
+   manager asks, choose Execute or Run). From a terminal: ./"Play @TITLE@"
+3. Click "Choose your extracted disc" and pick the folder above, or drag it
+   onto the window. (Where the desktop has no folder chooser, type or paste
+   the folder's path.) It tells you straight away if it is the wrong game,
+   another region or another revision, or if part of the disc is missing.
+4. Wait for the first build: a few minutes on a desktop PC. Your game
+   files never leave your computer.
+5. Click Play. The window hides while the game runs. "Add to the
+   applications menu" puts @TITLE@ in your desktop's menu.
+
+After that, Play @TITLE@ remembers your folder (even in a new download
+folder), and Play starts the game straight away. After an update it builds
+the game again first, recompiling only what changed. Leave the disc folder
+where it is: the game reads its files from it while you play.
+
+The game's output is in work/run.log and work/run-errors.log, and the
+build's in work/build.log. Send them when reporting a problem. If the
+picture stays black after the first screen, close the game and start it
+again (a rare fault at start-up, not yet found).
+
+Needs: a 64-bit Linux on x86-64 (the linux-x86_64 download) or ARM64 (the
+linux-arm64 download) with glibc 2.35 or later (Ubuntu 22.04, Debian 12,
+Fedora 36, Raspberry Pi OS Bookworm or later), and a graphics driver with
+Vulkan 1.3: Mesa's Vulkan drivers (on Debian and Ubuntu, the
+mesa-vulkan-drivers package) or NVIDIA's. Sound goes through PipeWire,
+PulseAudio or ALSA, whichever the system has. Before building, Play
+@TITLE@ checks for Vulkan and says what to install if it's missing.
+Updates use curl (or wget) and tar, which nearly every Linux has.
+
+
+Raspberry Pi
+------------
+- The 64-bit Raspberry Pi OS (see the top of this file), on a Raspberry Pi
+  4 or 5 with 2 GB of memory or more. Use the linux-arm64 download.
+- Vulkan 1.3 for the Pi's graphics arrived with Mesa 24.3: Raspberry Pi OS
+  Trixie (October 2025) or later has it. On an older Raspberry Pi OS, Play
+  @TITLE@ says so before building: update Raspberry Pi OS.
+- The first build compiles the whole game on the Pi itself, so it takes
+  much longer than on a desktop PC, and longer still on a 2 GB Pi, which
+  compiles fewer files at a time. Leave it running. Later builds take
+  compiled files from the cache.
+- In the settings menu, use the "low-end" or "original" preset (both draw
+  the console's own 640x528 picture), keep vsync on, and play full screen
+  (F11).
+- "Add to the applications menu" (once the game is built) puts @TITLE@ in
+  the Raspberry Pi menu, under Games.
+
+
+Controls
+--------
+A Wii Remote held upright, buttons only (no motion controls).
+
+  Controller               Keyboard                     Wii Remote
+  south button (Xbox A),   A, Right Shift, Right        A
+  right shoulder           arrow, Space
+  east button (Xbox B),    B, Left Shift, Left arrow    B (the trigger)
+  left shoulder, right
+  trigger
+  west, north buttons      1, 2                         1, 2
+  Start, Back              Enter; Backspace or Tab      +; -
+  Guide                    H                            HOME
+  d-pad, left stick        I J K L, Up and Down arrows  the d-pad
+
+On the title screen, press A and B together. Every connected controller
+plays, and rumble reaches them.
+
+F1 or Esc (a controller: Back and Start together): the settings menu (the
+game pauses), with the controls (set by pressing them), the picture (size,
+a CRT look, internal resolution, filtering, vsync) and the console's own
+settings. Alt+Enter or F11: full screen. F3: frame times, the display's
+refresh and the sound's lag.
+
+Settings (beatthebeat.ini), saves (nand) and the shader cache are kept in
+~/.local/share/qilin/@GAME@ (or $XDG_DATA_HOME/qilin/@GAME@), with the
+folder you chose and the build's cache of compiled files (build-cache).
+
+
+What's in here
+--------------
+Play @TITLE@      chooses your extracted disc, builds the game (once) and starts it
+kit/qilin           the recompiler: turns the disc's @BOOT@ into C++
+kit/rhf             the Rhythm Heaven Fever decompilation's function names,
+                    which the recompiler matches to your disc's code
+kit/lib, include    the prebuilt rest of the game: its runtime, the renderer,
+                    sound, the window and controls (SDL3), the menu (Dear ImGui)
+kit/toolchain/zig   zig, a C++ compiler (Clang, with its own libc++)
+kit/icon.png        the menu entry's icon
+kit/files.txt       every file this release holds (see below)
+work/               made when building: the game (@EXE_LINUX@), built from your
+                    disc, the recompiled code, the build's files and the logs
+LICENSES/           the licences of everything included
+
+zig keeps its own cache of compiled libraries in ~/.cache/zig.
+
+Source, changes and issues: https://github.com/@REPO@
+
+
+Updates and recovery
+--------------------
+"Check for updates" in Play @TITLE@ asks GitHub for a newer release (it
+sends nothing about you or your computer). If there is one, it downloads
+it, unpacks it beside this folder and swaps in the new kit and launcher,
+then starts again and builds the game for the new version. If anything
+fails on the way, the old version is left as it was. You can also unpack a
+new download anywhere, even over this folder: it finds your folder and the
+cache by itself, and at its first start it removes files the new kit no
+longer has (anything in kit/ or LICENSES/ that kit/files.txt doesn't name).
+Your saves and settings are never in this folder, so nothing of yours is
+touched.
+
+The game is compiled for this computer's processor; moved to another
+computer, it is built again. Compiled files come from the cache when
+nothing they're made from has changed. A failed build leaves the working
+game as it was; the one before a new build is kept as
+work/@EXE_LINUX@.previous until the new one has run and closed normally.
+"Build again from scratch" compiles everything anew.

@@ -148,7 +148,7 @@ QILIN_NATIVE(ICInvalidateRange) {}
 // outside the replaced libraries builds 0xE000xxxx, and only the debugger
 // stub touches the DMA registers): so there is no DMA, and an access to it
 // would stop under checked memory.
-bool g_lc_enabled = false;
+[[maybe_unused]] bool g_lc_enabled = false;  // recorded only: nothing reads the locked cache
 QILIN_NATIVE(LCEnable) { g_lc_enabled = true; }
 QILIN_NATIVE(LCDisable) { g_lc_enabled = false; }
 QILIN_NATIVE(LCQueueLength) { c.r[3] = 0; }  // no DMA transfers pending

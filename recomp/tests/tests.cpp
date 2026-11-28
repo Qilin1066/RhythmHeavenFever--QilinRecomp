@@ -4,8 +4,10 @@
 #include <algorithm>
 #include <cmath>
 #include <map>
+#include <cstdlib>
 #include <cstring>
 #include <filesystem>
+#include <format>
 #include <fstream>
 #include <print>
 #include <sstream>
@@ -21,12 +23,14 @@
 #include "guest.hpp"
 #include "gx.hpp"
 #include "hwaccess.hpp"
+#include "identify.hpp"
 #include "input.hpp"
 #include "libraries.hpp"
 #include "lifter.hpp"
 #include "native.hpp"
 #include "settings.hpp"
 #include "sha256.hpp"
+#include "symbols.hpp"
 
 using namespace qilin;
 
@@ -298,6 +302,215 @@ uint32_t canonical(const ppc::Spec& s) {
     uint32_t fields = 0;
     for (ppc::Opnd o : s.operands) fields |= ppc::field_mask(o);
     return s.match | (kTemplate & fields & ~s.mask);
+}
+
+// ---------------------------------------------------------------- identify
+
+// An extracted disc in a folder of its own, as Dolphin lays one out.
+struct FakeDisc {
+    std::filesystem::path dir;
+    explicit FakeDisc(std::string_view name) {
+        dir = std::filesystem::temp_directory_path() / std::format("qilin-identify-{}-{}", name, std::rand());
+        std::filesystem::remove_all(dir);
+        std::filesystem::create_directories(dir / "sys");
+        std::filesystem::create_directories(dir / "files");
+        std::filesystem::create_directories(dir / "disc");
+        write("sys/main.dol", SyntheticDol().bytes);
+        write("sys/fst.bin", std::vector<uint8_t>(16, 0));
+        header("sys/boot.bin", "SOMP01", 0, "Fixture");
+        header("disc/header.bin", "SOMP01", 0, "Fixture");
+    }
+    ~FakeDisc() {
+        std::error_code ec;
+        std::filesystem::remove_all(dir, ec);
+    }
+    FakeDisc(const FakeDisc&) = delete;
+    FakeDisc& operator=(const FakeDisc&) = delete;
+    void write(const std::string& name, const std::vector<uint8_t>& bytes) const {
+        std::ofstream(dir / name, std::ios::binary).write(reinterpret_cast<const char*>(bytes.data()), std::streamsize(bytes.size()));
+    }
+    void header(const std::string& name, std::string_view id, uint8_t revision, std::string_view title) const {
+        std::vector<uint8_t> h(0x440, 0);
+        std::copy(id.begin(), id.end(), h.begin());
+        h[7] = revision;
+        std::copy(title.begin(), title.end(), h.begin() + 0x20);
+        write(name, h);
+    }
+};
+
+void test_identify() {
+    const std::string sha = sha256_hex(SyntheticDol().bytes);
+    const std::string zeros(64, '0');
+    const std::string title = "Fixture: Rhythm Paradise (Europe, Australia)";
+    const KnownBuild ours[] = {{sha, "SOMP01", 0, title}};
+    const KnownBuild other[] = {{zeros, "SOMP01", 0, title}, {sha, "SOME01", 0, "Fixture Fever (USA)"}};
+    const KnownBuild none[] = {{zeros, "SOMP01", 0, title}};
+    const std::string for_text = " This download is for " + title + ", disc SOMP01 revision 0.";
+    FakeDisc disc("right");
+
+    // The supported build.
+    const Identity right = identify(disc.dir, "", ours);
+    CHECK(right.ok && right.code == 0 && right.title == title && right.id == "SOMP01" && right.version == "0");
+    CHECK(right.message == "This is " + title + ", disc SOMP01 revision 0: the right disc.");
+    CHECK(identify(disc.dir, title, ours).code == 0);
+    CHECK(identify(disc.dir, "No Such Build", ours).code == 2);
+    CHECK(identify(disc.dir, "", known_builds()).code == 3);  // the real list: the fixture is no build of it
+    CHECK(known_builds().size() == 1 && known_builds()[0].disc_id == "SOMP01" && known_builds()[0].revision == 0);
+
+    // Another build this port knows.
+    const Identity usa = identify(disc.dir, title, other);
+    CHECK(!usa.ok && usa.code == 3 && usa.title == "Fixture Fever (USA)" && usa.id == "SOME01");
+    CHECK(usa.message == "This is Fixture Fever (USA), disc SOME01 revision 0." + for_text);
+
+    // Unknown main.dols: named by what the disc's headers say.
+    {
+        FakeDisc d("revision");
+        d.header("disc/header.bin", "SOMP01", 1, "Fixture");
+        const Identity i = identify(d.dir, "", none);
+        CHECK(!i.ok && i.code == 3 && i.title == "Fixture" && i.id == "SOMP01" && i.version == "1");
+        CHECK(i.message == "This is " + title + ", disc SOMP01 revision 1. This download is for revision 0 of that disc.");
+        std::filesystem::remove(d.dir / "disc" / "header.bin");  // no revision known
+        const Identity j = identify(d.dir, "", none);
+        CHECK(j.code == 3 && j.version.empty() && j.message.starts_with("This is disc SOMP01, but its main.dol isn't revision 0's (SHA-256 " + sha));
+    }
+    {
+        const Identity i = identify(disc.dir, "", none);  // the right disc's headers, a changed main.dol
+        CHECK(i.code == 3 && i.version == "0" && i.message.ends_with("If your disc is revision 0, extract it again."));
+    }
+    {
+        FakeDisc d("region");
+        d.header("sys/boot.bin", "SOME01", 0, "Fixture");
+        d.header("disc/header.bin", "SOME01", 0, "Fixture");
+        const Identity i = identify(d.dir, "", none);
+        CHECK(i.code == 3 && i.id == "SOME01" && i.message == "This is the game's release for North America (SOME01)." + for_text);
+        d.header("sys/boot.bin", "SOMJ01", 0, "Fixture");
+        CHECK(identify(d.dir, "", none).message == "This is the game's release for Japan (SOMJ01)." + for_text);
+        d.header("sys/boot.bin", "SOMQ01", 0, "Fixture");
+        CHECK(identify(d.dir, "", none).message == "This is the game's release for another region (SOMQ01)." + for_text);
+    }
+    {
+        FakeDisc d("game");
+        d.header("sys/boot.bin", "RSPP01", 0, "Wii Sports");
+        const Identity i = identify(d.dir, "", none);
+        CHECK(i.code == 3 && i.title == "Wii Sports" && i.id == "RSPP01" && i.message == "This is Wii Sports (RSPP01), another game." + for_text);
+        std::filesystem::remove(d.dir / "sys" / "boot.bin");
+        std::filesystem::remove(d.dir / "disc" / "header.bin");
+        const Identity j = identify(d.dir, "", none);
+        CHECK(j.code == 3 && j.title.empty() && j.message == "This folder's main.dol isn't a version this download knows (SHA-256 " + sha + ")." + for_text);
+    }
+
+    // Unreadable, or not the folder: exit 2, saying what to choose.
+    CHECK(identify(disc.dir / "missing", "", ours).code == 2);
+    disc.write("two.bin", {9, 0});
+    CHECK(identify(disc.dir / "two.bin", "", ours).code == 2);
+    const Identity dol_alone = identify(disc.dir / "sys" / "main.dol", "", ours);
+    CHECK(dol_alone.code == 2 && dol_alone.message.starts_with("This is main.dol on its own"));
+    for (const char* image : {"game.WBFS", "game.iso", "game.rvz"}) {
+        disc.write(image, {1, 2, 3});
+        const Identity i = identify(disc.dir / image, "", ours);
+        CHECK(i.code == 2 && i.message.starts_with("This is a disc image: the game is built from the disc extracted into a folder."));
+    }
+    const Identity sys = identify(disc.dir / "sys", "", ours);
+    CHECK(sys.code == 2 && sys.message.starts_with("This is the disc's sys folder"));
+    {
+        FakeDisc d("partitions");
+        std::filesystem::create_directories(d.dir / "DATA");
+        std::filesystem::rename(d.dir / "sys", d.dir / "DATA" / "sys");
+        const Identity i = identify(d.dir, "", ours);
+        CHECK(i.code == 2 && i.message == "This folder holds the disc's partitions: choose the DATA folder inside it.");
+        CHECK(identify(d.dir / "files", "", ours).message.starts_with("There's no sys/main.dol in this folder"));
+    }
+    {
+        FakeDisc d("damaged");
+        d.write("sys/main.dol", std::vector<uint8_t>(0x80, 0));
+        const Identity i = identify(d.dir, "", ours);
+        CHECK(i.code == 2 && i.message.starts_with("Can't read sys/main.dol in this folder: "));
+    }
+    {
+        // Missing parts: the right main.dol, but no files (or fst.bin).
+        FakeDisc d("partial");
+        std::filesystem::remove_all(d.dir / "files");
+        const Identity i = identify(d.dir, "", ours);
+        CHECK(!i.ok && i.code == 2 && i.message.starts_with("This folder has the right main.dol but not the rest of the disc"));
+        FakeDisc e("no-fst");
+        std::filesystem::remove(e.dir / "sys" / "fst.bin");
+        CHECK(identify(e.dir, "", ours).code == 2);
+    }
+
+    // The headers' reader, and the JSON: one object, the message escaped.
+    const auto h = read_disc_header(disc.dir / "disc" / "header.bin");
+    CHECK(h && h->id == "SOMP01" && h->revision == 0 && h->title == "Fixture");
+    CHECK(!read_disc_header(disc.dir / "two.bin"));
+    Identity quoted = right;
+    quoted.message = "a \"quote\"\\ and\na line\x01";
+    CHECK(to_json(quoted) == "{\"ok\": true, \"title\": \"" + title + "\", \"id\": \"SOMP01\", \"version\": \"0\", "
+                             "\"message\": \"a \\\"quote\\\"\\\\ and\\na line\\u0001\"}\n");
+    CHECK(to_json(Identity{}).starts_with("{\"ok\": false, "));
+}
+
+// ---------------------------------------------------------------- symbols
+
+void test_symbols() {
+    using symbols::Opcode;
+    // difflib's opcodes, as Python's SequenceMatcher(None, a, b, autojunk=False).get_opcodes() gives them.
+    auto ops = [](std::vector<uint32_t> a, std::vector<uint32_t> b) { return symbols::opcodes(a, b); };
+    CHECK((ops({1, 2, 3, 4, 5}, {1, 2, 3, 4, 5}) == std::vector<Opcode>{{'e', 0, 5, 0, 5}}));
+    CHECK((ops({8, 8, 8, 16, 4, 12}, {8, 8, 16, 8, 4, 4, 8}) ==
+          (std::vector<Opcode>{{'d', 0, 1, 0, 0}, {'e', 1, 4, 0, 3}, {'i', 4, 4, 3, 4}, {'e', 4, 5, 4, 5}, {'r', 5, 6, 5, 7}})));
+    CHECK((ops({1, 2, 3, 9, 9, 4, 5, 6}, {1, 2, 3, 7, 4, 5, 6}) ==
+          (std::vector<Opcode>{{'e', 0, 3, 0, 3}, {'r', 3, 5, 3, 4}, {'e', 5, 8, 4, 7}})));
+    CHECK((ops({}, {3, 4}) == std::vector<Opcode>{{'i', 0, 0, 0, 2}}));
+    CHECK((ops({5, 5, 5}, {}) == std::vector<Opcode>{{'d', 0, 3, 0, 0}}));
+    CHECK((ops({7, 1, 7, 1, 7}, {1, 7, 1, 7, 1}) == (std::vector<Opcode>{{'i', 0, 0, 0, 1}, {'e', 0, 4, 1, 5}, {'d', 4, 5, 5, 5}})));
+    CHECK((ops({12, 8, 16, 4, 4, 20, 4, 12, 20, 4, 20, 8, 4, 4, 16, 16, 4, 8, 4, 20, 16, 4, 20, 4, 8, 20, 4, 20, 20, 16, 4, 8, 4, 20, 8, 12, 16, 8, 20, 4},
+              {12, 8, 16, 4, 4, 20, 4, 20, 8, 4, 24, 8, 4, 16, 16, 4, 8, 4, 20, 16, 99, 20, 4, 8, 20, 4, 20, 20, 16, 4, 12, 20, 8, 12, 16, 8, 20, 4}) ==
+          (std::vector<Opcode>{{'e', 0, 7, 0, 7}, {'d', 7, 10, 7, 7}, {'e', 10, 13, 7, 10}, {'i', 13, 13, 10, 12}, {'e', 13, 21, 12, 20},
+                               {'r', 21, 22, 20, 21}, {'e', 22, 31, 21, 30}, {'r', 31, 33, 30, 31}, {'e', 33, 40, 31, 38}})));
+
+    // The decomp's files, read as port_symbols.py reads them.
+    const auto dir = std::filesystem::temp_directory_path() / std::format("qilin-symbols-{}", std::rand());
+    std::filesystem::create_directories(dir);
+    std::ofstream(dir / "symbols.txt", std::ios::binary)
+        << "B = .init:0x80004008; // type:function size:0x8 scope:global\r\n"
+           "A = .init:0x80004000; // type:function size:0x8 scope:local\n"
+           "Data = .data:0x80005000; // type:object size:0x10\n"
+           "Label = .init:0x80004010; // type:label scope:global\n"
+           "PPCMfmsr = .init:0x80004010; // type:function size:0x8\n"
+           "E = .init:0x80004018; // type:function size:0xC\n";
+    std::ofstream(dir / "splits.txt", std::ios::binary) << "Sections:\n\t.init       type:code align:4\n\nrevolution/base/PPCArch.c:\n"
+                                                           "\t.init       start:0x80004000 end:0x80004018\n\t.data       start:0x80005000 end:0x80005010\n";
+    const auto us = symbols::load_decomp(dir);
+    std::filesystem::remove_all(dir);
+    CHECK(us && us->size() == 4);
+    if (!us || us->size() != 4) return;
+    CHECK((*us)[0].name == "A" && (*us)[1].name == "B" && (*us)[2].name == "PPCMfmsr" && (*us)[3].name == "E");
+    CHECK((*us)[0].unit == "revolution/base/PPCArch.c" && (*us)[3].unit == "(unsplit)" && (*us)[3].size == 0xC);
+    CHECK(!symbols::load_decomp(dir));  // gone: an error, not an empty list
+
+    // The port: A and B one to one, PPCMfmsr moved to the function whose
+    // code is `mfmsr r3; blr`, E split in two.
+    SyntheticDol s;
+    put_be32(s.bytes, 0x124, 0x7C6000A6);  // 0x80003124: mfmsr r3
+    put_be32(s.bytes, 0x128, 0x4E800020);  //             blr
+    const auto dol = Dol::parse(s.bytes);
+    CHECK(dol.has_value());
+    if (!dol) return;
+    const std::vector<symbols::PalFunction> pal = {{".init", 0x80003100, 8}, {".init", 0x80003108, 8}, {".init", 0x80003110, 8},
+                                                   {".init", 0x80003118, 4}, {".init", 0x8000311C, 8}, {".init", 0x80003124, 8}};
+    // US sizes 8 8 8 12 against PAL 8 8 8 4 8 8: A, B, PPCMfmsr anchored at
+    // the first three; E (12) is 4 + 8; PPCMfmsr moves to the last.
+    const auto ported = symbols::port(*dol, pal, *us);
+    CHECK(ported.has_value());
+    if (!ported) return;
+    CHECK(ported->list == "A = .init:0x80003100; // size:0x8 us:0x80004000 match:anchored unit:revolution/base/PPCArch.c\n"
+                          "B = .init:0x80003108; // size:0x8 us:0x80004008 match:anchored unit:revolution/base/PPCArch.c\n"
+                          "PPCMfmsr = .init:0x80003124; // size:0x8 us:0x80004010 match:signature unit:revolution/base/PPCArch.c\n"
+                          "E = .init:0x80003118; // size:0x4 us:0x80004018 match:split unit:(unsplit)\n"
+                          "E.part2 = .init:0x8000311C; // size:0x8 us:0x80004018 match:split unit:(unsplit)\n");
+    CHECK(std::ranges::find(ported->summary, "moved by its code: PPCMfmsr 80003110 -> 80003124") != ported->summary.end());
+    // A name whose code is nowhere near: stop rather than guess.
+    put_be32(s.bytes, 0x124, 0x60000000);
+    CHECK(!symbols::port(*Dol::parse(s.bytes), pal, *us).has_value());
 }
 
 void test_decoder() {
@@ -1259,6 +1472,8 @@ int main() {
     test_natives();
     test_sha256();
     test_dol();
+    test_identify();
+    test_symbols();
     test_decoder();
     test_cfg();
     test_lifter();
