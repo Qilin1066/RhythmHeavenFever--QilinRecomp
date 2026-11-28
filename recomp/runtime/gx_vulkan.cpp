@@ -557,7 +557,7 @@ void save_pipeline_cache() {
     if (vkGetPipelineCacheData(g.device, g.pipeline_cache, &size, data.data()) != VK_SUCCESS) return;
     std::error_code ec;
     std::filesystem::create_directories(path.parent_path(), ec);
-    const std::filesystem::path tmp = path.string() + ".tmp";
+    const std::filesystem::path tmp = std::filesystem::path(path) += ".tmp";
     {
         std::ofstream f(tmp, std::ios::binary | std::ios::trunc);
         f.write(reinterpret_cast<const char*>(data.data()), static_cast<std::streamsize>(size));
@@ -670,7 +670,7 @@ void load_pipeline_keys() {
 void save_pipeline_keys() {
     const std::filesystem::path path = pipeline_keys_path();
     if (path.empty()) return;
-    const std::filesystem::path tmp = path.string() + ".tmp";
+    const std::filesystem::path tmp = std::filesystem::path(path) += ".tmp";
     {
         std::ofstream f(tmp, std::ios::binary | std::ios::trunc);
         const uint32_t head[2] = {kKeysMagic, uint32_t(kKeyWords)};

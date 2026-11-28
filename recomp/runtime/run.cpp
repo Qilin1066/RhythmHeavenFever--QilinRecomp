@@ -17,6 +17,7 @@
 #include <thread>
 
 #include "bot.hpp"
+#include "command_line.hpp"
 #include "dol.hpp"
 #include "dvd.hpp"
 #include "host.hpp"
@@ -24,6 +25,7 @@
 #include "machine.hpp"
 #include "nand.hpp"
 #include "native.hpp"
+#include "path.hpp"
 #include "profile.hpp"
 #include "threads.hpp"
 
@@ -91,6 +93,10 @@ void call_from(rt::Context& c, uint32_t fn, uint32_t return_to) {
 }  // namespace
 
 int main(int argc, char** argv) {
+    // UTF-8 on Windows too (not the ANSI code page): a disc folder may have any name.
+    const qilin::CommandLine command_line(argc, argv);
+    argc = command_line.count();
+    argv = command_line.values();
 #ifndef QILIN_HEADLESS_ONLY
     // qilin_run --controllers: what SDL sees, and each button as it's
     // pressed, for 20 s: to check a controller without the game.
@@ -106,12 +112,12 @@ int main(int argc, char** argv) {
         std::fprintf(stderr, "qilin_run: the log of this run (no console): %s\n", log.c_str());
     // The extracted disc's folder (Dolphin: Extract Entire Disc) gives the
     // game and its files; main.dol alone runs until the game reads the disc.
-    const std::filesystem::path arg = argv[1];
+    const std::filesystem::path arg = native_path(argv[1]);
     const bool folder = std::filesystem::is_directory(arg);
     const std::filesystem::path dol_path = folder ? arg / "sys" / "main.dol" : arg;
     const auto dol = Dol::load(dol_path);
     if (!dol) {
-        std::fprintf(stderr, "qilin_run: %s: %s\n", dol_path.string().c_str(), dol.error().c_str());
+        std::fprintf(stderr, "qilin_run: %s: %s\n", utf8_path(dol_path).c_str(), dol.error().c_str());
         return 2;
     }
     if (folder && !rt::open_disc(arg)) return 2;
@@ -158,7 +164,10 @@ int main(int argc, char** argv) {
         return 2;
 #endif
     }
-    run_game(c);
+    // Not on the main thread either: its stack is whatever the linker or
+    // the shell gave (1 MB with MSVC). run_game ends the process itself.
+    rt::start_guest_thread([&c] { run_game(c); }, true);
+    return 2;
 }
 
 namespace {

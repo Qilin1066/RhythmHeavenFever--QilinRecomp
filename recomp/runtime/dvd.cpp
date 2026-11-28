@@ -19,6 +19,7 @@
 #include "coherence.hpp"
 #include "interrupts.hpp"
 #include "native.hpp"
+#include "path.hpp"
 
 namespace qilin::rt {
 
@@ -313,7 +314,7 @@ QILIN_NATIVE(DVDCancelAllAsync) {
 bool open_disc(const std::filesystem::path& root) {
     std::ifstream f(root / "sys" / "fst.bin", std::ios::binary);
     if (!f) {
-        std::fprintf(stderr, "qilin_run: %s has no sys/fst.bin: not an extracted disc\n", root.string().c_str());
+        std::fprintf(stderr, "qilin_run: %s has no sys/fst.bin: not an extracted disc\n", qilin::utf8_path(root).c_str());
         return false;
     }
     const std::vector<uint8_t> b{std::istreambuf_iterator<char>(f), std::istreambuf_iterator<char>()};

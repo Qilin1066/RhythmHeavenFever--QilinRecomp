@@ -149,7 +149,7 @@ void switch_to(uint32_t next) {
         if (it == g_hosts.end() || it->second.gen != gen) {
             g_hosts[next] = Host{gen};
             ++stats().threads_started;
-            std::thread(host_main, next, gen).detach();
+            start_guest_thread([next, gen] { host_main(next, gen); });
         }
         g_running = next;
         // Under the lock: the variable's map node is stable, and the next

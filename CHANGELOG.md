@@ -11,6 +11,10 @@ Each release is a git tag (`vX.Y.Z`) with a matching GitHub release. The version
 
 ## [Unreleased]
 
+### Fixed
+- **Folders with any name on Windows**: `qilin` and the game read their arguments as UTF-8 from the UTF-16 command line (`recomp/runtime/command_line.hpp` and `path.hpp`, Toy Commander's), not in the ANSI code page, so an extracted disc in a folder named in Japanese, or with accents outside the system's code page, is identified, lifted and started. Every argument that names a file becomes a path through UTF-8 (`-o`, `--json`, `--out`, `--symbols`, `--decomp`, the input), and paths are no longer turned into ANSI strings and back (`path.string()`): the settings, pipeline cache and log files, the data folder (`LOCALAPPDATA` read as UTF-16) and the messages naming them. A new test, `qilin_identify_unicode`, runs `qilin identify` as the launcher does on a folder with a Japanese and accented name.
+- **Guest threads get an 8 MB stack on every system** (`kGuestStackBytes`, `start_guest_thread` in `recomp/runtime/machine.*`): lifted calls nest as deeply as the guest's, and `std::thread` took the system's default, 512 KB for a secondary thread on macOS (1 MB with MSVC). It is what the Windows player kit links (`--stack`) and Linux's default. The first guest thread no longer runs on the main thread without a window either, so the linker's and the shell's stack limits don't matter.
+
 ## [0.18.0] - 2026-11-28
 
 ### Added

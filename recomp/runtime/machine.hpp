@@ -3,8 +3,10 @@
 // Runtime code: no std::format.
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <string>
 
 #include "guest.hpp"
@@ -25,6 +27,15 @@ void fine_timers();
 // the multimedia scheduler's "Games" class, so background work doesn't
 // delay the retrace and the audio DMA.
 void game_thread_started();
+// The host stack of every thread that runs guest code: lifted calls nest as
+// deeply as the guest's, so the systems' defaults (512 KB for a secondary
+// thread on macOS, 1 MB with MSVC, 8 MB on Linux) aren't left to decide it.
+// 8 MB: what the Windows player kit links for its main thread, and Linux's.
+inline constexpr size_t kGuestStackBytes = size_t(8) << 20;
+// Runs `fn` on a new host thread with kGuestStackBytes of stack (std::thread
+// can't set one): detached, or waited for when `wait`. Throws
+// std::system_error if the system refuses, as std::thread does.
+void start_guest_thread(std::function<void()> fn, bool wait = false);
 // Windows, started without a console (a shortcut): the log (stderr) goes to
 // qilin_run.log in the game's data folder; its path, or empty if not.
 std::string log_to_file_without_console();

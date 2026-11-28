@@ -8,12 +8,15 @@
 #include <fstream>
 
 #include "input.hpp"
+#include "path.hpp"
 
 namespace qilin::rt {
 
 std::filesystem::path user_data_base() {
 #if defined(_WIN32)
-    if (const char* p = std::getenv("LOCALAPPDATA"); p && *p) return p;
+    // The wide variable: the narrow one is in the ANSI code page, which may
+    // not hold the user's folder name.
+    if (const wchar_t* p = _wgetenv(L"LOCALAPPDATA"); p && *p) return p;
 #elif defined(__APPLE__)
     if (const char* p = std::getenv("HOME"); p && *p) return std::filesystem::path(p) / "Library" / "Application Support";
 #else
@@ -288,7 +291,7 @@ Settings load() {
     std::string error;
     unsigned line = 0;
     if (!parse_settings(f, s, error, line)) {
-        std::fprintf(stderr, "qilin_run: %s, line %u: %s\n", path.string().c_str(), line, error.c_str());
+        std::fprintf(stderr, "qilin_run: %s, line %u: %s\n", qilin::utf8_path(path).c_str(), line, error.c_str());
         std::fflush(stderr);
         std::_Exit(2);
     }
@@ -427,8 +430,8 @@ std::filesystem::path game_data_dir() {
             std::filesystem::create_directories(now.parent_path(), ec);
             std::filesystem::rename(before, now, ec);
             if (ec) std::fprintf(stderr, "qilin_run: can't move %s to %s (%s): your saves are still in the old place\n",
-                                 before.string().c_str(), now.string().c_str(), ec.message().c_str());
-            else std::fprintf(stderr, "qilin_run: moved %s to %s\n", before.string().c_str(), now.string().c_str());
+                                 qilin::utf8_path(before).c_str(), qilin::utf8_path(now).c_str(), ec.message().c_str());
+            else std::fprintf(stderr, "qilin_run: moved %s to %s\n", qilin::utf8_path(before).c_str(), qilin::utf8_path(now).c_str());
         }
         return now;
     }();
@@ -451,7 +454,7 @@ bool save_settings() {
     if (path.empty()) return false;
     std::error_code ec;
     std::filesystem::create_directories(path.parent_path(), ec);
-    const std::filesystem::path tmp = path.string() + ".tmp";
+    const std::filesystem::path tmp = std::filesystem::path(path) += ".tmp";
     {
         std::ofstream f(tmp, std::ios::binary | std::ios::trunc);
         f << settings_text(settings());

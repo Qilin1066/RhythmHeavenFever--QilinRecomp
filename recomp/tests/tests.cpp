@@ -5,6 +5,7 @@
 #include <cmath>
 #include <map>
 #include <cstdlib>
+#include <cstdio>
 #include <cstring>
 #include <filesystem>
 #include <format>
@@ -14,7 +15,11 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
+#ifndef _WIN32
+#include <sys/wait.h>
+#endif
 
 #include "cfg.hpp"
 #include "decoder.hpp"
@@ -446,6 +451,60 @@ void test_identify() {
     CHECK(to_json(quoted) == "{\"ok\": true, \"title\": \"" + title + "\", \"id\": \"SOMP01\", \"version\": \"0\", "
                              "\"message\": \"a \\\"quote\\\"\\\\ and\\na line\\u0001\"}\n");
     CHECK(to_json(Identity{}).starts_with("{\"ok\": false, "));
+}
+
+// What the program prints and its exit status, run with `args` (each quoted;
+// these tests' paths hold no quotes). On Windows the command line is UTF-16
+// all the way, so the program sees the names as they are, as the launcher
+// starts it; qilin must read them back as UTF-8 (command_line.hpp).
+std::pair<int, std::string> run_program(const std::filesystem::path& program, const std::vector<std::filesystem::path>& args) {
+#ifdef _WIN32
+    std::wstring line = L"\"\"" + program.wstring() + L"\"";
+    for (const auto& a : args) line += L" \"" + a.wstring() + L"\"";
+    line += L"\"";  // cmd /c takes off the outer quotes
+    std::FILE* pipe = _wpopen(line.c_str(), L"rb");
+#else
+    std::string line = "'" + program.string() + "'";
+    for (const auto& a : args) line += " '" + a.string() + "'";
+    std::FILE* pipe = popen(line.c_str(), "r");
+#endif
+    if (!pipe) return {-1, {}};
+    std::string out;
+    char buffer[4096];
+    for (size_t n; (n = std::fread(buffer, 1, sizeof buffer, pipe)) > 0;) out.append(buffer, n);
+#ifdef _WIN32
+    const int status = _pclose(pipe);
+#else
+    const int raw = pclose(pipe);
+    const int status = WIFEXITED(raw) ? WEXITSTATUS(raw) : -1;
+#endif
+    return {status, out};
+}
+
+// `qilin identify` itself, the program the launcher runs, on a folder whose
+// name is Japanese and accented: outside any one ANSI code page, so it fails
+// on Windows if the arguments are read in that code page instead of UTF-8.
+void test_identify_unicode(const std::filesystem::path& qilin) {
+    FakeDisc disc("unicode");
+    const std::filesystem::path named = disc.dir.parent_path() /
+                                        std::filesystem::path(std::u8string(u8"qilin-リズム天国 Été ü-")) +=
+                                        std::to_string(std::rand());
+    std::filesystem::remove_all(named);
+    std::filesystem::rename(disc.dir, named);
+    disc.dir = named;  // removed with the fixture
+    const std::u8string leaf = named.filename().u8string();
+    const std::string leaf_utf8(leaf.begin(), leaf.end());
+
+    // The folder found and read: the fixture's headers, a main.dol that isn't
+    // the supported build's (exit 3, not 2).
+    const auto [code, out] = run_program(qilin, {"identify", named, "--json"});
+    CHECK(code == 3);
+    CHECK(out.starts_with("{\"ok\": false, \"title\": \"Fixture\", \"id\": \"SOMP01\", \"version\": \"0\", "));
+    CHECK(out.find("This is disc SOMP01, but its main.dol isn't revision 0's") != std::string::npos);
+    // A path that doesn't exist: named back in UTF-8, exactly.
+    const auto [missing_code, missing] = run_program(qilin, {"identify", named / "missing", "--json"});
+    CHECK(missing_code == 2 && missing.find(leaf_utf8) != std::string::npos);
+    if (failures) std::println(stderr, "qilin identify printed: {}{}", out, missing);
 }
 
 // ---------------------------------------------------------------- symbols
@@ -1183,14 +1242,14 @@ void test_libraries() {
              "a line that is not a symbol\n"
              "__save_gpr.part2 = .text:0x80105000; // size:0x4\n";
     }
-    const auto names = load_symbols(path.string());
+    const auto names = load_symbols(path);
     CHECK(names.size() == 3 && names.at(0x80038314u).name == "main" && names.at(0x80004050u).name == "__start");
     CHECK(names.at(0x80038314u).unit == "Game/main.cpp" && names.at(0x80004050u).unit.empty());
     CHECK(names.at(0x80105000u).name == "__save_gpr.part2");
     std::filesystem::remove(path);
     bool threw = false;
     try {
-        load_symbols(path.string());
+        load_symbols(path);
     } catch (const std::runtime_error&) {
         threw = true;
     }
@@ -1462,7 +1521,14 @@ void test_settings() {
 
 }  // namespace
 
-int main() {
+int main(int argc, char** argv) {
+    // qilin_tests --identify-unicode <qilin>: the one test that runs the program.
+    if (argc == 3 && std::string_view(argv[1]) == "--identify-unicode") {
+        test_identify_unicode(argv[2]);
+        if (failures) return 1;
+        std::println("all tests passed");
+        return 0;
+    }
     test_dpl2();
     test_settings();
     test_textures();

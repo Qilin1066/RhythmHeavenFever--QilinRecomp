@@ -26,8 +26,10 @@
 #endif
 #include "gx_vulkan.hpp"
 #include "input.hpp"
+#include "machine.hpp"
 #include "menu.hpp"
 #include "native.hpp"
+#include "path.hpp"
 #include "settings.hpp"
 
 namespace qilin::rt::host {
@@ -588,11 +590,11 @@ bool run(const std::function<void()>& game) {
                  "qilin_run: settings: %s (preset %s, %ux internal resolution, %ux anisotropic filtering)\n"
                  "qilin_run: controls as the settings file has them (the menu's Controls page sets them); "
                  "F1 or Esc: settings, F3: frame times, F11 or Alt+Enter: full screen\n",
-                 settings_path().string().c_str(), settings().preset.c_str(), gx::internal_scale(), settings().anisotropy);
+                 qilin::utf8_path(settings_path()).c_str(), settings().preset.c_str(), gx::internal_scale(), settings().anisotropy);
 
     apply_display_mode();  // before the game's threads: the clock's speed is set here first
     g_report_extra = gx::vblank_report;
-    std::thread(game).detach();
+    start_guest_thread(game);  // the guest's stack size (machine.hpp), not the system's default
     Menu menu(g_window);
     // QILIN_MENU_TOGGLE=<seconds>,...: the menu opened or closed at those
     // times after start (scripted runs: the pause, the overlay).

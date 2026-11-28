@@ -7,6 +7,8 @@
 #include <fstream>
 #include <stdexcept>
 
+#include "path.hpp"
+
 namespace qilin {
 
 namespace {
@@ -216,9 +218,9 @@ std::optional<Plan> runtime_plan(uint32_t addr, std::string_view name, std::stri
     return lib->plan;
 }
 
-std::map<uint32_t, SymbolInfo> load_symbols(const std::string& path) {
+std::map<uint32_t, SymbolInfo> load_symbols(const std::filesystem::path& path) {
     std::ifstream f(path);
-    if (!f) throw std::runtime_error(std::format("cannot open {}", path));
+    if (!f) throw std::runtime_error(std::format("cannot open {}", utf8_path(path)));
     std::map<uint32_t, SymbolInfo> names;
     for (std::string line; std::getline(f, line);) {
         // name = .section:0xADDRESS; // ... unit:path
@@ -235,7 +237,7 @@ std::map<uint32_t, SymbolInfo> load_symbols(const std::string& path) {
         }
         names.emplace(addr, SymbolInfo{line.substr(0, eq), std::move(unit)});
     }
-    if (names.empty()) throw std::runtime_error(std::format("{}: no symbols (expected \"name = .text:0x80001234; ...\")", path));
+    if (names.empty()) throw std::runtime_error(std::format("{}: no symbols (expected \"name = .text:0x80001234; ...\")", utf8_path(path)));
     return names;
 }
 

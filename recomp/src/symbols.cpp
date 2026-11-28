@@ -11,6 +11,8 @@
 #include <string_view>
 #include <tuple>
 
+#include "path.hpp"
+
 namespace qilin::symbols {
 
 namespace {
@@ -155,13 +157,13 @@ std::optional<UsFunction> symbol_line(std::string_view line) {
 
 std::expected<std::vector<std::string>, std::string> read_lines(const std::filesystem::path& file) {
     std::ifstream f(file, std::ios::binary);
-    if (!f) return std::unexpected(std::format("can't open {}", file.string()));
+    if (!f) return std::unexpected(std::format("can't open {}", utf8_path(file)));
     std::vector<std::string> lines;
     for (std::string line; std::getline(f, line);) {
         if (!line.empty() && line.back() == '\r') line.pop_back();  // as Python's text mode reads it
         lines.push_back(std::move(line));
     }
-    if (f.bad()) return std::unexpected(std::format("can't read {}", file.string()));
+    if (f.bad()) return std::unexpected(std::format("can't read {}", utf8_path(file)));
     return lines;
 }
 
@@ -281,7 +283,7 @@ std::expected<std::vector<UsFunction>, std::string> load_decomp(const std::files
     std::vector<UsFunction> funcs;
     for (const std::string& line : *symbols)
         if (auto f = symbol_line(line)) funcs.push_back(std::move(*f));
-    if (funcs.empty()) return std::unexpected(std::format("{}: no functions", (dir / "symbols.txt").string()));
+    if (funcs.empty()) return std::unexpected(std::format("{}: no functions", utf8_path(dir / "symbols.txt")));
     std::ranges::stable_sort(funcs, {}, &UsFunction::addr);
 
     // Translation units: "path:" then indented "section start:0x.. end:0x.." lines.

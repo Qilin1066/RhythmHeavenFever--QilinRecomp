@@ -66,7 +66,7 @@ endfunction()
 
 # ---- The DOL loader: runtime code too (no std::format) ----
 add_library(qilin_dol STATIC recomp/src/dol.cpp recomp/src/sha256.cpp)
-target_include_directories(qilin_dol PUBLIC recomp/src)
+target_include_directories(qilin_dol PUBLIC recomp/src recomp/runtime)  # recomp/runtime: path.hpp, command_line.hpp
 target_link_libraries(qilin_dol PRIVATE qilin_warnings)
 
 # ---- Recompiler core ----
@@ -86,6 +86,9 @@ qilin_tool(qilin_core)
 
 add_executable(qilin recomp/src/main.cpp)
 target_link_libraries(qilin PRIVATE qilin_core qilin_warnings)
+if(WIN32)
+    target_link_libraries(qilin PRIVATE shell32)  # CommandLineToArgvW (command_line.hpp)
+endif()
 qilin_tool(qilin)
 target_compile_definitions(qilin PRIVATE QILIN_VERSION="${PROJECT_VERSION}")
 
@@ -185,7 +188,7 @@ set(QILIN_RUN_GEN_SIDE_SOURCES recomp/runtime/dispatch.cpp recomp/runtime/timeba
 # multimedia scheduler's classes for the game's and audio's threads; dwmapi:
 # the compositor's vblank times (the vblank lock); ole32: COM for WASAPI's
 # exclusive mode; dbghelp: the sampling profiler's names.
-set(QILIN_RUN_WIN32_LIBRARIES winmm avrt dwmapi ole32 dbghelp)
+set(QILIN_RUN_WIN32_LIBRARIES winmm avrt dwmapi ole32 dbghelp shell32)  # shell32: CommandLineToArgvW
 set_source_files_properties(recomp/runtime/menu.cpp PROPERTIES COMPILE_DEFINITIONS QILIN_VERSION="${PROJECT_VERSION}")  # the menu's About
 
 # Lifted code from `qilin lift --runtime` (a second directory: the
@@ -490,8 +493,9 @@ if(QILIN_PLAYER_KIT)
         add_custom_target(beatthebeat_kit ALL DEPENDS "${kit_archive}" "${kit_runtime}")
         if(WIN32)
             # The system libraries SDL3 and the runtime need (MinGW names).
-            # The game's threads take the program's stack size (8 MB, as on
-            # Linux): lifted calls nest as deeply as the guest's.
+            # The main thread's stack, 8 MB as on Linux. The threads that run
+            # guest code set their own, the same size (kGuestStackBytes,
+            # recomp/runtime/machine.hpp): lifted calls nest as deeply as the guest's.
             set(kit_system_libraries -lm -lkernel32 -luser32 -lgdi32 -lwinmm -limm32 -lole32 -loleaut32 -lversion -luuid -ladvapi32
                 -lsetupapi -lshell32 -ldinput8 -lwinspool -lcomdlg32 -lavrt -ldwmapi -ldbghelp)
             set(kit_ldflags "-static -O2 -Wl,--stack,8388608")
@@ -559,4 +563,6 @@ if(WIN32)
 endif()
 qilin_tool(qilin_tests)
 add_test(NAME qilin_tests COMMAND qilin_tests)
+# qilin identify run as the launcher runs it, on a folder with a Japanese and accented name.
+add_test(NAME qilin_identify_unicode COMMAND qilin_tests --identify-unicode $<TARGET_FILE:qilin>)
 

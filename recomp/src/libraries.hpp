@@ -9,6 +9,7 @@
 #pragma once
 
 #include <cstdint>
+#include <filesystem>
 #include <map>
 #include <optional>
 #include <span>
@@ -53,6 +54,6 @@ std::optional<Plan> runtime_plan(uint32_t addr, std::string_view name, std::stri
 struct SymbolInfo {
     std::string name, unit;  // unit: "" if the line has none
 };
-std::map<uint32_t, SymbolInfo> load_symbols(const std::string& path);
+std::map<uint32_t, SymbolInfo> load_symbols(const std::filesystem::path& path);
 
 }  // namespace qilin

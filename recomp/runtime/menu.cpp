@@ -17,6 +17,7 @@
 #include "gx_vulkan.hpp"
 #include "host.hpp"
 #include "native.hpp"
+#include "path.hpp"
 #include "pause.hpp"
 #include "settings.hpp"
 #include "threads.hpp"
@@ -163,7 +164,7 @@ Menu::~Menu() {
 
 void Menu::save() {
     settings().fullscreen = (SDL_GetWindowFlags(window_) & SDL_WINDOW_FULLSCREEN) != 0;
-    if (!save_settings()) std::fprintf(stderr, "qilin_run: the settings can't be saved to %s\n", settings_path().string().c_str());
+    if (!save_settings()) std::fprintf(stderr, "qilin_run: the settings can't be saved to %s\n", qilin::utf8_path(settings_path()).c_str());
 }
 
 bool Menu::handle(const SDL_Event& e) {
@@ -641,14 +642,14 @@ void Menu::game_page() {
     ImGui::SameLine();
     ImGui::TextDisabled("(for a black screen or a freeze: then quit, and send the log)");
     if (!report_note_.empty()) ImGui::TextDisabled("%s", report_note_.c_str());
-    ImGui::TextWrapped("The log: %s", (game_data_dir() / "qilin_run.log").string().c_str());
+    ImGui::TextWrapped("The log: %s", qilin::utf8_path(game_data_dir() / "qilin_run.log").c_str());
 
     ImGui::SeparatorText("About");
     ImGui::TextWrapped("Beat the Beat: Rhythm Paradise QilinRecomp %s: a static recompilation, the game's own code compiled for this computer.",
                        QILIN_VERSION);
     ImGui::TextWrapped("Graphics: Vulkan. Window, sound and input: SDL3 (zlib). Menu: Dear ImGui (MIT).");
-    ImGui::TextWrapped("Settings file: %s", settings_path().string().c_str());
-    ImGui::TextWrapped("Saves and the pipeline cache: %s", game_data_dir().string().c_str());
+    ImGui::TextWrapped("Settings file: %s", qilin::utf8_path(settings_path()).c_str());
+    ImGui::TextWrapped("Saves and the pipeline cache: %s", qilin::utf8_path(game_data_dir()).c_str());
 }
 
 }  // namespace qilin::rt

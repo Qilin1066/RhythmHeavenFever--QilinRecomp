@@ -3,19 +3,26 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <cerrno>
 #include <filesystem>
+#include <memory>
 #include <string>
+#include <system_error>
+#include <utility>
 
+#include "path.hpp"
 #include "settings.hpp"
 
 #if defined(_WIN32)
 #include <windows.h>
 #include <avrt.h>
+#include <process.h>
 #include <dwmapi.h>
 #include <timeapi.h>
 
 #include <chrono>
 #else
+#include <pthread.h>
 #include <sys/mman.h>
 #endif
 
@@ -75,9 +82,9 @@ std::string log_to_file_without_console() {
     std::error_code ec;
     std::filesystem::create_directories(dir, ec);
     const std::filesystem::path path = dir / "qilin_run.log";
-    if (!std::freopen(path.string().c_str(), "w", stderr)) return {};
+    if (!_wfreopen(path.c_str(), L"w", stderr)) return {};
     std::setvbuf(stderr, nullptr, _IONBF, 0);  // every line reaches the file, a hang or a crash included
-    return path.string();
+    return qilin::utf8_path(path);
 #else
     return {};
 #endif
@@ -90,6 +97,42 @@ void game_thread_started() {
     // run when due. Each guest thread has its own host thread, so each asks.
     DWORD task = 0;
     AvSetMmThreadCharacteristicsW(L"Games", &task);  // without the service: no change
+#endif
+}
+
+namespace {
+#if defined(_WIN32)
+unsigned __stdcall guest_thread_entry(void* arg) {
+#else
+void* guest_thread_entry(void* arg) {
+#endif
+    const std::unique_ptr<std::function<void()>> fn(static_cast<std::function<void()>*>(arg));
+    (*fn)();
+    return {};
+}
+}  // namespace
+
+void start_guest_thread(std::function<void()> fn, bool wait) {
+    auto arg = std::make_unique<std::function<void()>>(std::move(fn));
+#if defined(_WIN32)
+    // The size as the reservation, as the linker's /STACK (--stack) sets one.
+    const uintptr_t h = _beginthreadex(nullptr, unsigned(kGuestStackBytes), guest_thread_entry, arg.get(),
+                                       STACK_SIZE_PARAM_IS_A_RESERVATION, nullptr);
+    if (!h) throw std::system_error(errno, std::generic_category(), "cannot start a guest thread");
+    arg.release();  // the thread owns it now
+    if (wait) WaitForSingleObject(reinterpret_cast<HANDLE>(h), INFINITE);
+    CloseHandle(reinterpret_cast<HANDLE>(h));
+#else
+    pthread_attr_t attr;
+    if (const int e = pthread_attr_init(&attr)) throw std::system_error(e, std::generic_category(), "pthread_attr_init");
+    int e = pthread_attr_setstacksize(&attr, kGuestStackBytes);
+    pthread_t t{};
+    if (!e) e = pthread_create(&t, &attr, guest_thread_entry, arg.get());
+    pthread_attr_destroy(&attr);
+    if (e) throw std::system_error(e, std::generic_category(), "cannot start a guest thread");
+    arg.release();  // the thread owns it now
+    if (wait) pthread_join(t, nullptr);
+    else pthread_detach(t);
 #endif
 }
 
