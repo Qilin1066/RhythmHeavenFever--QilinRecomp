@@ -50,6 +50,7 @@ struct KnownBuild {
     std::string_view title;
 };
 const KnownBuild* known_build(std::string_view sha256_hex);
+std::span<const KnownBuild> known_builds();
 
 class Dol {
 public:

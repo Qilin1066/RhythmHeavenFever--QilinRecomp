@@ -1,0 +1,132 @@
+@TITLE@ QilinRecomp for Windows (64-bit)
+===============================================
+
+@FULL_TITLE@ (@STUDIO@; Rhythm Heaven Fever in North America),
+recompiled to run natively: the game's own program translated into C++ and
+compiled for your PC, drawn with Vulkan.
+
+No game data is included. You need your own copy of the game: @RELEASE@,
+extracted into a folder with Dolphin. Other regions and revisions (Rhythm
+Heaven Fever, Minna no Rhythm Tengoku) are other programs and aren't
+supported.
+
+
+Your game folder
+----------------
+In Dolphin, right-click the game in the list, choose Properties, open the
+Filesystem tab, right-click the disc at the top and choose Extract Entire
+Disc, and pick an empty folder. The folder you need is the one holding
+"sys" and "files": if Dolphin made a DATA folder inside the one you picked,
+it is that DATA folder. A .wbfs, .iso or .rvz file can't be read as it is:
+extract it first.
+
+
+Playing
+-------
+1. Unzip the download anywhere. Building the game needs about 2 GB free.
+2. Open the folder and double-click "Play @TITLE@.exe".
+3. Click "Choose your extracted disc" and pick the folder above, or drag it
+   onto the window. It tells you straight away if it is the wrong game,
+   another region or another revision, or if part of the disc is missing.
+4. Wait for the first build: a few minutes. Your game files never leave
+   your PC.
+5. Click Play. The window hides while the game runs. "Add a desktop
+   shortcut" puts Play @TITLE@ on your desktop.
+
+After that, Play @TITLE@.exe remembers your folder (even in a new download
+folder), and Play starts the game straight away. After an update it builds
+the game again first, recompiling only what changed. Leave the disc folder
+where it is: the game reads its files from it while you play.
+
+The game's output is in work\run.log and work\run-errors.log, and the
+build's in work\build.log. Send them when reporting a problem. If the
+picture stays black after the first screen, close the game and start it
+again (a rare fault at start-up, not yet found).
+
+If Windows says "Windows protected your PC": More info, then Run anyway.
+(The download isn't signed.) Or before unpacking, right-click the zip,
+Properties, tick Unblock, OK.
+
+Needs: Windows 10 or 11, 64-bit, and a graphics driver with Vulkan 1.3
+(any recent NVIDIA, AMD or Intel driver).
+
+
+If you used install.cmd before
+------------------------------
+Earlier versions were built from the source with install.cmd, which
+installed the game into %LOCALAPPDATA%\Programs\Beat the Beat - Rhythm
+Paradise with its own shortcuts. This download doesn't touch that copy, so
+you may have both. To remove the old one: Settings, Apps, Installed apps,
+"Beat the Beat: Rhythm Paradise (Qilin recompilation)", Uninstall (or
+Uninstall.cmd in that folder). Both use the same saves and settings
+(below), and the uninstaller leaves them where they are.
+
+
+Controls
+--------
+A Wii Remote held upright, buttons only (no motion controls).
+
+  Controller               Keyboard                     Wii Remote
+  south button (Xbox A),   A, Right Shift, Right        A
+  right shoulder           arrow, Space
+  east button (Xbox B),    B, Left Shift, Left arrow    B (the trigger)
+  left shoulder, right
+  trigger
+  west, north buttons      1, 2                         1, 2
+  Start, Back              Enter; Backspace or Tab      +; -
+  Guide                    H                            HOME
+  d-pad, left stick        I J K L, Up and Down arrows  the d-pad
+
+On the title screen, press A and B together. Every connected controller
+plays, and rumble reaches them.
+
+F1 or Esc (a controller: Back and Start together): the settings menu (the
+game pauses), with the controls (set by pressing them), the picture (size,
+a CRT look, internal resolution, filtering, vsync) and the console's own
+settings. Alt+Enter or F11: full screen. F3: frame times, the display's
+refresh and the sound's lag.
+
+Sound uses Windows' exclusive mode where the device allows it, for the
+least lag; [audio] exclusive = false in the settings file shares the device
+instead.
+
+Settings (beatthebeat.ini), saves (nand) and the shader cache are kept in
+%LOCALAPPDATA%\qilin\@GAME@, with the folder you chose and the build's cache
+of compiled files (build-cache).
+
+
+What's in here
+--------------
+Play @TITLE@.exe  chooses your extracted disc, builds the game (once) and starts it
+kit\qilin.exe       the recompiler: turns the disc's @BOOT@ into C++
+kit\rhf             the Rhythm Heaven Fever decompilation's function names,
+                    which the recompiler matches to your disc's code
+kit\lib, include    the prebuilt rest of the game: its runtime, the renderer,
+                    sound, the window and controls (SDL3), the menu (Dear ImGui)
+kit\toolchain       LLVM-MinGW, a C++ compiler for Windows (Clang)
+kit\files.txt       every file this release holds (see below)
+work\               made when building: the game (@EXE@), built from your
+                    disc, the recompiled code, the build's files and the logs
+LICENSES\           the licences of everything included
+
+Source, changes and issues: https://github.com/@REPO@
+
+
+Updates and recovery
+--------------------
+"Check for updates" in Play @TITLE@.exe asks GitHub for a newer release
+(it sends nothing about you or your PC). If there is one, it downloads it,
+unpacks it beside this folder and swaps in the new kit and launcher, then
+starts again and builds the game for the new version. If anything fails on
+the way, the old version is left as it was. You can also unzip a new
+download anywhere, even over this folder: it finds your folder and the
+cache by itself, and at its first start it removes files the new kit no
+longer has (anything in kit\ or LICENSES\ that kit\files.txt doesn't name).
+Your saves and settings are never in this folder, so nothing of yours is
+touched.
+
+The game is compiled for this PC's processor; moved to another PC, it is
+built again. Compiled files come from the cache when nothing they're made
+from has changed. A failed build leaves the working game as it was; the one
+before a new build is kept as work\@EXE@.previous until the new one has run
+and closed normally. "Build again from scratch" compiles everything anew.

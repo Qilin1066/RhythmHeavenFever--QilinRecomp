@@ -1,0 +1,146 @@
+@TITLE@ QilinRecomp for macOS (Apple silicon and Intel)
+==============================================================
+
+@FULL_TITLE@ (@STUDIO@; Rhythm Heaven Fever in North America),
+recompiled to run natively: the game's own program translated into C++ and
+compiled for your Mac, drawn with Vulkan (through MoltenVK, which comes
+with the app).
+
+No game data is included. You need your own copy of the game: @RELEASE@,
+extracted into a folder with Dolphin. Other regions and revisions (Rhythm
+Heaven Fever, Minna no Rhythm Tengoku) are other programs and aren't
+supported.
+
+
+Your game folder
+----------------
+In Dolphin, right-click the game in the list, choose Properties, open the
+Filesystem tab, right-click the disc at the top and choose Extract Entire
+Disc, and pick an empty folder. The folder you need is the one holding
+"sys" and "files": if Dolphin made a DATA folder inside the one you picked,
+it is that DATA folder. A .wbfs, .iso or .rvz file can't be read as it is:
+extract it first.
+
+
+Playing
+-------
+1. Drag @TITLE@.app onto Applications (in this disk image's window).
+   Building the game needs about 2 GB free.
+2. Open @TITLE@ from Applications. The first time, macOS stops it, because
+   the app isn't signed by an Apple developer account (see below):
+   - open System Settings, then Privacy & Security;
+   - scroll down to Security, where it says "@TITLE@ was blocked to
+     protect your Mac" (or "... was blocked from use because it is not
+     from an identified developer");
+   - click Open Anyway, then Open Anyway again in the window that appears,
+     and confirm with your password or Touch ID.
+   macOS asks only once. (On macOS 14, right-clicking the app in Finder and
+   choosing Open does the same.)
+3. The game is compiled with Apple's own compiler, free from Apple (its
+   licence doesn't let it come with this download). If your Mac doesn't
+   have it yet, the app says so: click "Install Apple's command line
+   tools", follow Apple's installer (a few minutes), then click "Check
+   again".
+4. Click "Choose your extracted disc" and pick the folder above, or drag it
+   onto the window. It tells you straight away if it is the wrong game,
+   another region or another revision, or if part of the disc is missing.
+5. Wait for the first build: a few minutes. Your game files never leave
+   your Mac.
+6. Click Play. The window hides while the game runs.
+
+After that, the app remembers your folder, and Play starts the game
+straight away. After an update it builds the game again first, recompiling
+only what changed. Leave the disc folder where it is: the game reads its
+files from it while you play.
+
+The game's output is in run.log and run-errors.log, and the build's in
+build.log, all in ~/Library/Application Support/qilin/@GAME@/work (in
+Finder: Go, Go to Folder). Send them when reporting a problem. If the
+picture stays black after the first screen, close the game and start it
+again (a rare fault at start-up, not yet found).
+
+About "Open Anyway": the app is signed only by itself ("ad hoc"), not by
+an Apple developer account, so Gatekeeper can't name who made it. Check
+that you downloaded it from the project's GitHub releases page (below)
+before you open it. Nothing in it changes that check or works around it.
+
+Needs: macOS 14.5 (Sonoma) or newer, on an Apple silicon or Intel Mac, and
+Apple's command line tools from Xcode 16 or newer, which need that macOS
+(the app checks; older tools are updated with System Settings, General,
+Software Update). Graphics go through MoltenVK, Vulkan over Apple's Metal.
+
+
+Controls
+--------
+A Wii Remote held upright, buttons only (no motion controls).
+
+  Controller               Keyboard                     Wii Remote
+  south button (Xbox A),   A, Right Shift, Right        A
+  right shoulder           arrow, Space
+  east button (Xbox B),    B, Left Shift, Left arrow    B (the trigger)
+  left shoulder, right
+  trigger
+  west, north buttons      1, 2                         1, 2
+  Start, Back              Return; Delete or Tab        +; -
+  Guide                    H                            HOME
+  d-pad, left stick        I J K L, Up and Down arrows  the d-pad
+
+On the title screen, press A and B together. Every connected controller
+plays, and rumble reaches them.
+
+F1 or Esc (a controller: Back and Start together): the settings menu (the
+game pauses), with the controls (set by pressing them), the picture (size,
+a CRT look, internal resolution, filtering, vsync) and the console's own
+settings. Option+Return, F11 or the window's green button: full screen. F3:
+frame times, the display's refresh and the sound's lag. On a Mac keyboard
+F1, F3 and F11 may need the fn key.
+
+Settings (beatthebeat.ini), saves (nand) and the shader cache are kept in
+~/Library/Application Support/qilin/@GAME@, with the folder you chose, the
+build (work) and its cache of compiled files (build-cache).
+
+
+What's in the app
+-----------------
+Right-click @TITLE@.app, Show Package Contents:
+
+Contents/MacOS/Play @TITLE@     chooses your extracted disc, builds the
+                                  game (once) and starts it
+Contents/Resources/kit/qilin      the recompiler: turns the disc's @BOOT@
+                                  into C++
+Contents/Resources/kit/rhf        the Rhythm Heaven Fever decompilation's
+                                  function names, which the recompiler
+                                  matches to your disc's code
+Contents/Resources/kit/lib, include
+                                  the prebuilt rest of the game: its
+                                  runtime, the renderer, sound, the window
+                                  and controls (SDL3), the menu (Dear ImGui)
+Contents/Resources/kit/files.txt  every file this release holds (see below)
+Contents/Frameworks/libMoltenVK.dylib
+                                  MoltenVK: Vulkan over Metal (Khronos)
+Contents/Resources/LICENSES       the licences of everything included
+
+The game itself (@EXE@), built from your disc, is in the work folder above,
+not in the app: the app is never changed by building.
+
+Source, changes and issues: https://github.com/@REPO@
+
+
+Updates and recovery
+--------------------
+"Check for updates" in the app asks GitHub for a newer release (it sends
+nothing about you or your Mac). If there is one, it downloads the disk
+image, copies the new app beside this one and swaps it in, then starts
+again and builds the game for the new version. If anything fails on the
+way, the old version is left as it was. The app must be somewhere you can
+write to for that (Applications is, for an administrator): run from the
+disk image itself, it can't update. You can also drag a new download's app
+over this one in Applications: it finds your folder and the cache by
+itself. Your saves and settings are never in the app, so nothing of yours
+is touched.
+
+The game is compiled for this Mac's processor; on another Mac, it is built
+again. Compiled files come from the cache when nothing they're made from has
+changed. A failed build leaves the working game as it was; the one before a
+new build is kept as work/@EXE@.previous until the new one has run and
+closed normally. "Build again from scratch" compiles everything anew.

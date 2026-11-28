@@ -15,6 +15,14 @@
 //                                                call native code (the difftest lifts everything)
 //   qilin hwaccess <main.dol> [--json out.json]  loads and stores at constant addresses outside
 //                                                cached MEM1 (hardware, GX FIFO, MEM2...), per function
+//   qilin symbols <main.dol> --decomp <dir> -o <list>
+//                                                the decomp's names ported to this build, the list
+//                                                lift --runtime reads (symbols.hpp; as
+//                                                tools/analysis/port_symbols.py --symbols-out writes it)
+//   qilin identify <extracted disc folder> --json [--build <title>]
+//                                                what the folder is, for the players' launcher: one
+//                                                JSON object on stdout (identify.hpp); exit 0 the
+//                                                supported build, 3 another, 2 unreadable
 //
 // Listings are one line per word: address, word, text ("8000310c 4e800020 bclr 20,lt,0").
 // Exit status is non-zero on any error; nothing fails silently.
@@ -41,8 +49,10 @@
 #include "decoder.hpp"
 #include "dol.hpp"
 #include "hwaccess.hpp"
+#include "identify.hpp"
 #include "libraries.hpp"
 #include "lifter.hpp"
+#include "symbols.hpp"
 
 #ifndef QILIN_VERSION
 #define QILIN_VERSION "unknown"
@@ -69,13 +79,15 @@ int usage() {
                "  qilin suspects <main.dol>\n"
                "  qilin lift    <main.dol> --out <dir> [--range lo-hi] [--only addr] [--runtime --symbols <list>]\n"
                "  qilin hwaccess <main.dol> [--json out.json]\n"
+               "  qilin symbols <main.dol> --decomp <dir> -o <list>\n"
+               "  qilin identify <extracted disc folder> --json [--build <title>]\n"
                "  qilin --version\n");
     return 2;
 }
 
 struct Args {
     std::string command, input;
-    std::optional<std::string> out, json, out_dir, symbols;
+    std::optional<std::string> out, json, out_dir, symbols, decomp;
     std::optional<std::pair<uint32_t, uint32_t>> range;
     uint32_t base = 0;
     bool list = false, runtime = false;
@@ -108,6 +120,7 @@ Args parse_args(std::span<char*> argv) {
         else if (arg == "--list") a.list = true;
         else if (arg == "--out") a.out_dir = value();
         else if (arg == "--symbols") a.symbols = value();
+        else if (arg == "--decomp") a.decomp = value();
         else if (arg == "--runtime") a.runtime = true;
         else if (arg == "--only") {
             const uint32_t v = parse_u32(value());
@@ -296,7 +309,7 @@ int cmd_lift(const Args& a) {
     // runtime's native code through rt::native, by index in g_natives.
     std::map<uint32_t, SymbolInfo> names;
     if (a.runtime && !a.symbols)
-        throw Failure{"lift --runtime needs --symbols <the list tools/analysis/port_symbols.py --symbols-out writes>"};
+        throw Failure{"lift --runtime needs --symbols <the list qilin symbols writes>"};
     if (a.symbols) {
         try {
             names = load_symbols(*a.symbols);
@@ -458,9 +471,61 @@ int cmd_hwaccess(const Args& a) {
     return 0;
 }
 
+// The decomp's names ported to this main.dol (symbols.hpp). Derived from the
+// game: the list is written where the caller says, never committed.
+int cmd_symbols(const Args& a) {
+    if (!a.decomp) throw Failure{"symbols needs --decomp <the folder holding the decomp's symbols.txt and splits.txt>"};
+    if (!a.out) throw Failure{"symbols needs -o <list>"};
+    const Dol dol = load_dol(a.input);
+    Cfg cfg(dol);
+    cfg.run();
+    const auto us = symbols::load_decomp(*a.decomp);
+    if (!us) throw Failure{us.error()};
+    const auto pal = symbols::pal_functions(dol, cfg);
+    if (!pal) throw Failure{pal.error()};
+    const auto ported = symbols::port(dol, *pal, *us);
+    if (!ported) throw Failure{ported.error()};
+    for (const std::string& line : ported->summary) std::println("{}", line);
+    const bool written = update_file(*a.out, ported->list);
+    std::println("{} {}", written ? "wrote" : "unchanged:", *a.out);
+    return 0;
+}
+
+// The launcher's contract (identify.hpp): JSON whatever happens, and only
+// exit codes 0, 3 and 2.
+int cmd_identify(int argc, char** argv) {
+    std::optional<std::string> path, build;
+    bool json = false;
+    std::string problem;
+    for (int i = 2; i < argc; ++i) {
+        const std::string_view a = argv[i];
+        if (a == "--json") json = true;
+        else if (a == "--build" && i + 1 < argc) build = argv[++i];
+        else if (!a.starts_with("-") && !path) path = std::string(a);
+        else problem = std::format("identify: unexpected argument {}", a);
+    }
+    if (!path) problem = "identify takes one folder";
+    if (!json) problem = "identify needs --json";
+    Identity id;
+    if (!problem.empty()) {
+        id.message = problem;
+    } else {
+        try {
+            id = identify(std::filesystem::path(*path), build.value_or(""));
+        } catch (const std::exception& e) {
+            id = Identity{};
+            id.message = std::format("The recompiler failed: {}.", e.what());
+        }
+    }
+    std::print("{}", to_json(id));
+    std::fflush(stdout);
+    return id.code;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
+    if (argc >= 2 && std::string_view(argv[1]) == "identify") return cmd_identify(argc, argv);
     if (argc == 2 && std::string_view(argv[1]) == "--version") {
         std::println("qilin " QILIN_VERSION);
         return 0;
@@ -477,6 +542,7 @@ int main(int argc, char** argv) {
         if (a.command == "suspects") return cmd_suspects(a);
         if (a.command == "lift") return cmd_lift(a);
         if (a.command == "hwaccess") return cmd_hwaccess(a);
+        if (a.command == "symbols") return cmd_symbols(a);
         return usage();
     } catch (const Failure& f) {
         std::println(stderr, "qilin: {}", f.message);

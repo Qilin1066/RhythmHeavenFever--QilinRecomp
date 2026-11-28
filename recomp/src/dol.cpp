@@ -33,6 +33,8 @@ std::unexpected<std::string> fail(std::string message) { return std::unexpected(
 
 std::string DolSection::name() const { return (text ? "text" : "data") + std::to_string(index); }
 
+std::span<const KnownBuild> known_builds() { return kKnownBuilds; }
+
 const KnownBuild* known_build(std::string_view sha256_hex) {
     for (const KnownBuild& b : kKnownBuilds)
         if (b.sha256 == sha256_hex) return &b;
