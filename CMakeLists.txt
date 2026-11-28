@@ -448,6 +448,11 @@ if(TARGET qilin_imgui AND NOT QILIN_RUNTIME_GEN_DIR)
     if(WIN32)
         target_link_libraries(beatthebeat_runtime PRIVATE ${QILIN_RUN_WIN32_LIBRARIES})
     endif()
+    if(MINGW)
+        # Windows 10's API (SetProcessInformation and the like): MinGW's
+        # headers default to an older Windows, MSVC's SDK to the newest.
+        target_compile_definitions(beatthebeat_runtime PRIVATE _WIN32_WINNT=0x0A00 WINVER=0x0A00)
+    endif()
     if(QILIN_BUILD_SHADERS)
         add_dependencies(beatthebeat_runtime qilin_shaders)
     endif()

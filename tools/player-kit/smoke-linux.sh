@@ -89,8 +89,10 @@ EOF
 cd "$scratch"
 # shellcheck disable=SC2086
 "$zig" c++ $cxxflags $native -c hello.cpp -o hello.o
+# Without the kit's libs: they hold the game's own main (the runtime, linked
+# whole), which the stand-in game below links.
 # shellcheck disable=SC2086
-"$zig" c++ $ldflags -o hello hello.o $libs
+"$zig" c++ $ldflags -o hello hello.o -lpthread
 [ "$(./hello)" = "hello 48 odd" ] || fail "the compiled program said: $(./hello)"
 echo "compile, link and run: ok"
 
