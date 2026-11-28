@@ -11,6 +11,8 @@ Each release is a git tag (`vX.Y.Z`) with a matching GitHub release. The version
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-11-28
+
 ### Added
 - **Downloads for players** on the Releases page, as the other QilinRecomp projects have them: Windows (`-windows-x64.zip`), Linux on x86-64 and on ARM64 for the Raspberry Pi 4 and 5 (`-linux-x86_64.tar.gz`, `-linux-arm64.tar.gz`) and macOS, universal (`-macos.dmg`). Unpack, double-click **Play Beat the Beat** and choose the extracted disc's folder; the first start builds the game from it with the bundled compiler (LLVM-MinGW, zig; Apple's command line tools on a Mac), then Play. No CMake, Visual Studio or Python is needed. The launcher is Toy Commander's (`tools/player-kit/launcher`, launcher 4, copied unchanged); `kit/game.txt` tells it about this game. Built by `.github/workflows/player-kit*.yml` and attached to a `vX.Y.Z` tag's release. The installer stays; the README says how to remove its copy.
 - **`qilin symbols`**: `tools/analysis/port_symbols.py`'s name porting in C++, so a player's computer needs no Python. It writes the same list (checked line for line on the supported `main.dol`), with difflib's alignment ported exactly. The download carries the decomp's `symbols.txt` and `splits.txt` (CC0); the list itself is made on the player's computer from their own disc. `port_symbols.py` stays for its library table and `--list`.
